@@ -70,7 +70,7 @@ MapTileRenderer::~MapTileRenderer() { cleanupCache(); }
 cv::Mat MapTileRenderer::drawMap(double latitude, double longitude, double zoom,
                                  int width, int height, double heading, int dpi,
                                  const LayerStore* layers) {
-    LOGD("drawMap zoom=%.3f", zoom);
+    //LOGD("drawMap zoom=%.3f", zoom);
 
     int tile_zoom = (zoom == std::floor(zoom))
                         ? static_cast<int>(zoom)
@@ -86,7 +86,7 @@ cv::Mat MapTileRenderer::drawMap(double latitude, double longitude, double zoom,
     BoundingBox bounds = calculateBounds(latitude, longitude, zoom,
                                          canvas, canvas, 96);
     auto tiles = getTilesInBounds(bounds, tile_zoom);
-    LOGD("Fetching %zu tiles", tiles.size());
+    //LOGD("Fetching %zu tiles", tiles.size());
 
     cv::Mat oversized = stitchAndCenter(tiles, tile_zoom, scale_factor,
                                         latitude, longitude, canvas, canvas);
@@ -107,10 +107,10 @@ cv::Mat MapTileRenderer::drawMap(double latitude, double longitude, double zoom,
             156543.034 * std::cos(latitude * M_PI / 180.0) / std::pow(2.0, zoom);
         geom.canvas_w = oversized.cols;
         geom.canvas_h = oversized.rows;
-        LOGD("Layer geom: mpp=%.3f canvas=%dx%d center_px=(%.1f,%.1f) layers=%zu",
+        /*LOGD("Layer geom: mpp=%.3f canvas=%dx%d center_px=(%.1f,%.1f) layers=%zu",
              geom.meters_per_pixel, geom.canvas_w, geom.canvas_h,
              geom.center_px, geom.center_py, layer_snapshot.size());
-
+        */
         // Geographic layers go onto the pre-rotation canvas so they rotate
         // with the map.
         LayerRenderer::drawGeographicLayers(oversized, layer_snapshot, geom);
@@ -174,8 +174,8 @@ cv::Mat MapTileRenderer::drawMapByArea(double latitude, double longitude,
         LOGW("drawMapByArea: zoom=%.2f - Web Mercator distortion may be "
              "significant at this scale", zoom);
     }
-    LOGD("drawMapByArea: %.1fm over %dpx -> %.4f m/px -> zoom=%.3f",
-         meters, min_dim, meters_per_pixel, zoom);
+    /*LOGD("drawMapByArea: %.1fm over %dpx -> %.4f m/px -> zoom=%.3f",
+         meters, min_dim, meters_per_pixel, zoom);*/
     return drawMap(latitude, longitude, zoom, width, height, heading, dpi, layers);
 }
 

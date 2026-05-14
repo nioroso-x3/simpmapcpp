@@ -69,7 +69,7 @@ void drawRect(cv::Mat& overlay, const GeoRectLayer& r,
     // Width/height in pixels
     double half_w_px = (r.width_m  * 0.5) / g.meters_per_pixel;
     double half_h_px = (r.height_m * 0.5) / g.meters_per_pixel;
-
+/*
 #if defined(__ANDROID__)
     __android_log_print(ANDROID_LOG_DEBUG, "LayerRenderer",
         "Rect at canvas (%.1f, %.1f), half_w=%.2fpx half_h=%.2fpx",
@@ -79,7 +79,7 @@ void drawRect(cv::Mat& overlay, const GeoRectLayer& r,
                  "half_w=%.2fpx half_h=%.2fpx\n",
                  cx, cy, half_w_px, half_h_px);
 #endif
-
+*/
     // Four corners in local rect space, then rotated by heading, then
     // translated to (cx, cy).
     double a = r.heading_deg * M_PI / 180.0;
