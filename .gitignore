@@ -1,0 +1,47 @@
+# Build directories
+build/
+build-*/
+out/
+cmake-build-*/
+
+# CMake artifacts
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+install_manifest.txt
+Testing/
+Makefile
+*.cmake
+!cmake/*.cmake
+
+# Generated output (CLI example writes here)
+output_map*.png
+cache/
+*.db
+
+# Editor / IDE
+.vscode/
+.idea/
+.cache/
+.clangd/
+compile_commands.json
+*.swp
+*.swo
+.DS_Store
+
+# OS
+Thumbs.db
+
+# Compiled
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# OpenSSL build artifacts (in case anyone builds in tree)
+openssl-*/
