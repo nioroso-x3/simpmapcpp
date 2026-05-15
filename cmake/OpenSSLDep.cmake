@@ -35,16 +35,11 @@ if(ANDROID)
         message(FATAL_ERROR "Unsupported ANDROID_ABI: ${ANDROID_ABI}")
     endif()
 
-    # Extract API level. ANDROID_PLATFORM is "android-29" or just "29".
-    if(ANDROID_PLATFORM MATCHES "android-([0-9]+)")
-        set(_android_api ${CMAKE_MATCH_1})
-    else()
-        set(_android_api ${ANDROID_PLATFORM})
-    endif()
+    set(_android_api ${ANDROID_NATIVE_API_LEVEL})
 
     # OpenSSL's Configure needs the NDK toolchain on PATH so it can find
     # clang, llvm-ar, etc.
-    set(_toolchain_bin ${ANDROID_TOOLCHAIN_ROOT}/bin)
+    set(_toolchain_bin ${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin)
 
     ExternalProject_Add(simplemap_openssl_build
         URL ${SIMPLEMAP_OPENSSL_URL}
@@ -52,20 +47,19 @@ if(ANDROID)
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 
         CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env
-            ANDROID_NDK_ROOT=${ANDROID_NDK}
+            ANDROID_NDK_ROOT=${CMAKE_ANDROID_NDK}
             "PATH=${_toolchain_bin}:$ENV{PATH}"
             <SOURCE_DIR>/Configure ${_openssl_target}
-                -D__ANDROID_API__=${_android_api}
                 --prefix=${SIMPLEMAP_OPENSSL_INSTALL}
                 no-shared no-tests no-asm no-legacy no-docs no-apps
 
         BUILD_COMMAND ${CMAKE_COMMAND} -E env
-            ANDROID_NDK_ROOT=${ANDROID_NDK}
+            ANDROID_NDK_ROOT=${CMAKE_ANDROID_NDK}
             "PATH=${_toolchain_bin}:$ENV{PATH}"
             make -j
 
         INSTALL_COMMAND ${CMAKE_COMMAND} -E env
-            ANDROID_NDK_ROOT=${ANDROID_NDK}
+            ANDROID_NDK_ROOT=${CMAKE_ANDROID_NDK}
             "PATH=${_toolchain_bin}:$ENV{PATH}"
             make install_sw
 

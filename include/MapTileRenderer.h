@@ -6,9 +6,10 @@
 #include <memory>
 #include <mutex>
 #include <opencv2/opencv.hpp>
-#include <sqlite3.h>
 #include <string>
 #include <unordered_map>
+
+struct sqlite3;
 
 class LayerStore;  // forward decl, defined in MapLayer.h
 

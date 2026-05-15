@@ -1,7 +1,7 @@
 #include "MapTileRenderer.h"
 #include "MapLayer.h"
 #include "LayerRenderer.h"
-
+#include <sqlite3.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
