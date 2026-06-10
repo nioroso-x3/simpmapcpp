@@ -38,7 +38,7 @@ if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite3/sqlite3.c)
 endif()
 
 add_library(simplemap_sqlite3 STATIC third_party/sqlite3/sqlite3.c)
-target_include_directories(simplemap_sqlite3 PUBLIC third_party/sqlite3)
+target_include_directories(simplemap_sqlite3 PRIVATE third_party/sqlite3)
 target_compile_definitions(simplemap_sqlite3 PRIVATE
     SQLITE_THREADSAFE=1
     SQLITE_OMIT_LOAD_EXTENSION
@@ -59,9 +59,8 @@ if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/httplib/httplib.h)
         "into third_party/httplib/. See third_party/httplib/README.md.")
 endif()
 
-add_library(simplemap_httplib INTERFACE)
-target_include_directories(simplemap_httplib INTERFACE third_party/httplib)
-target_compile_definitions(simplemap_httplib INTERFACE CPPHTTPLIB_OPENSSL_SUPPORT)
+# httplib is header-only - we'll include it directly in the main target
+# to avoid exposing it to consumers
 
 # ----------------------------------------------------------------------------
 # Dependencies: OpenSSL
@@ -94,11 +93,14 @@ target_link_libraries(simplemap
         ${OpenCV_LIBS}
     PRIVATE
         simplemap_sqlite3
-        simplemap_httplib
         simplemap::openssl_ssl
         simplemap::openssl_crypto
 )
-target_include_directories(simplemap SYSTEM PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_include_directories(simplemap SYSTEM PRIVATE
+    ${OpenCV_INCLUDE_DIRS}
+    third_party/httplib
+)
+target_compile_definitions(simplemap PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
 
 if(ANDROID)
     # __android_log_print and zlib (httplib uses it for compressed responses)
