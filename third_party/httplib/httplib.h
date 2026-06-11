@@ -316,7 +316,7 @@ using socket_t = int;
 /*
  * Declaration
  */
-namespace httplib {
+namespace simplemap_internal_httplib {
 
 namespace detail {
 
@@ -4492,7 +4492,7 @@ inline ssize_t write_response_line(Stream &strm, int status) {
   std::string s = "HTTP/1.1 ";
   s += std::to_string(status);
   s += " ";
-  s += httplib::status_message(status);
+  s += simplemap_internal_httplib::status_message(status);
   s += "\r\n";
   return strm.write(s.data(), s.size());
 }
@@ -10342,7 +10342,7 @@ inline SSL_CTX *Client::ssl_context() const {
 
 // ----------------------------------------------------------------------------
 
-} // namespace httplib
+} // namespace simplemap_internal_httplib
 
 #if defined(_WIN32) && defined(CPPHTTPLIB_USE_POLL)
 #undef poll

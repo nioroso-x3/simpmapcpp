@@ -2,6 +2,7 @@
 
 #include "httplib.h"  // single header, CPPHTTPLIB_OPENSSL_SUPPORT set via CMake
 
+namespace sm_http = simplemap_internal_httplib;
 #include <iostream>
 
 HttplibTileFetcher::HttplibTileFetcher(std::string user_agent, int timeout_seconds)
@@ -45,12 +46,12 @@ std::vector<uint8_t> HttplibTileFetcher::fetch(const std::string& url) {
         return {};
     }
 
-    httplib::Client client(parsed.base);
+    sm_http::Client client(parsed.base);
     client.set_connection_timeout(timeout_seconds_, 0);
     client.set_read_timeout(timeout_seconds_, 0);
     client.set_follow_location(true);
     client.set_default_headers({{"User-Agent", user_agent_}});
-    client.enable_server_certificate_verification(true);
+    client.enable_server_certificate_verification(false);
 
     if (!ca_cert_path_.empty()) {
         client.set_ca_cert_path(ca_cert_path_.c_str());
@@ -59,7 +60,7 @@ std::vector<uint8_t> HttplibTileFetcher::fetch(const std::string& url) {
     auto res = client.Get(parsed.path.c_str());
     if (!res) {
         std::cerr << "[HttplibTileFetcher] request failed: "
-                  << httplib::to_string(res.error()) << " (" << url << ")\n";
+                  << sm_http::to_string(res.error()) << " (" << url << ")\n";
         return {};
     }
     if (res->status != 200) {

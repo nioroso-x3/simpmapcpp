@@ -38,7 +38,7 @@ if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite3/sqlite3.c)
 endif()
 
 add_library(simplemap_sqlite3 STATIC third_party/sqlite3/sqlite3.c)
-target_include_directories(simplemap_sqlite3 PRIVATE third_party/sqlite3)
+target_include_directories(simplemap_sqlite3 PUBLIC third_party/sqlite3)
 target_compile_definitions(simplemap_sqlite3 PRIVATE
     SQLITE_THREADSAFE=1
     SQLITE_OMIT_LOAD_EXTENSION
@@ -111,6 +111,8 @@ elseif(UNIX)
 endif()
 
 set_target_properties(simplemap PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
     EXPORT_NAME simplemap
 )
 
