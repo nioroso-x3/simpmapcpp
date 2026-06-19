@@ -6,12 +6,12 @@
 #include <memory>
 #include <mutex>
 #include <opencv2/opencv.hpp>
+#include <sqlite3.h>
 #include <string>
 #include <unordered_map>
 
-struct sqlite3;
-
 class LayerStore;  // forward decl, defined in MapLayer.h
+class AsyncTileLoader;  // forward decl, defined in AsyncTileLoader.h
 
 class MapTileRenderer {
 public:
@@ -23,6 +23,17 @@ public:
                     size_t max_disk_cache_mb = 128,
                     size_t max_memory_cache_mb = 32);
     ~MapTileRenderer();
+
+    // Switch to background tile loading. Missing tiles are rendered as a
+    // solid grey placeholder while a worker pool fetches them; subsequent
+    // drawMap calls pick up the completed tiles from the cache.
+    //
+    // Call once after construction, before any drawMap. The fetcher passed
+    // to the constructor moves into the loader's worker pool.
+    //
+    // num_threads is typically 3-6. More than ~6 doesn't help because most
+    // tile servers cap concurrent connections per origin.
+    void enableAsyncLoading(int num_threads = 3);
 
     // Render a map centered at (latitude, longitude) at the given fractional
     // zoom. Returns an RGBA (CV_8UC4) image of width*dpi/96 by height*dpi/96.
@@ -98,4 +109,10 @@ private:
     void evictDiskCache() const;
     size_t estimateTileSize(const cv::Mat& tile) const;
     TileKey coordToKey(const TileCoord& coord) const;
+
+    // Async loading. Constructed lazily by enableAsyncLoading(). Declared
+    // last so its destructor runs FIRST, joining worker threads before the
+    // cache/SQLite teardown below tries to free their dependencies.
+    cv::Mat placeholder_tile_;          // built once in enableAsyncLoading
+    std::unique_ptr<AsyncTileLoader> async_loader_;
 };

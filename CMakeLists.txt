@@ -80,6 +80,7 @@ add_library(simplemap STATIC
     src/HttplibTileFetcher.cpp
     src/MapLayer.cpp
     src/LayerRenderer.cpp
+    src/AsyncTileLoader.cpp
 )
 add_library(simplemap::simplemap ALIAS simplemap)
 

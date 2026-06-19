@@ -1,13 +1,13 @@
 // Steady-state FPS benchmark for simplemap.
 //
-// Pre-warms the tile cache, then renders repeatedly and reports FPS.
-// Reflects the rendering hot path (cache hit, decode-from-RGBA, layer
-// composite, rotate, crop) without network noise.
+// Pre-warms the tile cache, then renders repeatedly and reports FPS. Reflects
+// the rendering hot path (cache hit, decode-from-RGBA, layer composite,
+// rotate, crop) without network noise.
 //
 // Usage:
-//   benchmark [--lat L] [--lon L] [--zoom Z] [--meters M]
+//   benchmark [--lat L] [--lon L] [--zoom Z | --meters M]
 //             [--width W] [--height H] [--heading H] [--dpi D]
-//             [--layers N] [--seconds S] [--cache DIR]
+//             [--layers N] [--seconds S] [--cache DIR] [--async]
 
 #include "HttplibTileFetcher.h"
 #include "MapLayer.h"
@@ -20,10 +20,11 @@
 #include <memory>
 #include <random>
 #include <string>
+#include <thread>
 
 namespace {
 
-using Clock = std::chrono::steady_clock;
+using Clock   = std::chrono::steady_clock;
 using Seconds = std::chrono::duration<double>;
 
 void populateLayers(LayerStore& store, int n, double lat, double lon) {
@@ -80,11 +81,11 @@ int main(int argc, char* argv[]) {
 
     double lat = 40.7128, lon = -74.0060;
     double zoom = 17.0, meters = -1.0;
-    bool zoom_set = false;
-    int width = 512, height = 512, dpi = 96;
+    bool   zoom_set = false, async = false;
+    int    width = 512, height = 512, dpi = 96;
     double heading = 0.0;
-    int layer_count = 10;
-    double duration_s = 5.0;
+    int    layer_count = 10;
+    double duration_s  = 5.0;
     std::string cache_dir = "./cache_bench";
 
     for (int i = 1; i < argc; ++i) {
@@ -93,17 +94,18 @@ int main(int argc, char* argv[]) {
         else if (eq("--lon")     && i + 1 < argc) lon = std::stod(argv[++i]);
         else if (eq("--zoom")    && i + 1 < argc) { zoom = std::stod(argv[++i]); zoom_set = true; }
         else if (eq("--meters")  && i + 1 < argc) meters = std::stod(argv[++i]);
-        else if (eq("--width")   && i + 1 < argc) width = std::stoi(argv[++i]);
+        else if (eq("--width")   && i + 1 < argc) width  = std::stoi(argv[++i]);
         else if (eq("--height")  && i + 1 < argc) height = std::stoi(argv[++i]);
         else if (eq("--heading") && i + 1 < argc) heading = std::stod(argv[++i]);
         else if (eq("--dpi")     && i + 1 < argc) dpi = std::stoi(argv[++i]);
         else if (eq("--layers")  && i + 1 < argc) layer_count = std::stoi(argv[++i]);
         else if (eq("--seconds") && i + 1 < argc) duration_s = std::stod(argv[++i]);
         else if (eq("--cache")   && i + 1 < argc) cache_dir = argv[++i];
+        else if (eq("--async"))   async = true;
         else if (eq("--help")) {
             std::cout << "Usage: benchmark [--lat L] [--lon L] [--zoom Z | --meters M]\n"
                          "                 [--width W] [--height H] [--heading H] [--dpi D]\n"
-                         "                 [--layers N] [--seconds S] [--cache DIR]\n";
+                         "                 [--layers N] [--seconds S] [--cache DIR] [--async]\n";
             return 0;
         }
         else { std::cerr << "Unknown option: " << argv[i] << "\n"; return 1; }
@@ -116,6 +118,8 @@ int main(int argc, char* argv[]) {
 
     auto fetcher = std::make_unique<HttplibTileFetcher>();
     MapTileRenderer renderer(tileset_url, std::move(fetcher), cache_dir, 256, 64);
+    if (async) renderer.enableAsyncLoading(4);
+
     LayerStore layers;
     populateLayers(layers, layer_count, lat, lon);
 
@@ -125,6 +129,7 @@ int main(int argc, char* argv[]) {
             : renderer.drawMap(lat, lon, zoom, width, height, heading, dpi, &layers);
     };
 
+    // Cold render (in async mode this will likely return placeholders).
     std::cout << "Warming cache...\n";
     auto warm_start = Clock::now();
     cv::Mat first = render();
@@ -135,8 +140,17 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "First render (cold): " << warm_ms << " ms\n";
 
-    // One more warmup to make sure everything is hot (memory cache, OS page
-    // cache for the SQLite db, OpenCV's internal lazy state, etc.).
+    // In async mode the first call returns immediately with placeholders.
+    // Pause briefly to let the worker pool actually fill the cache before we
+    // benchmark the steady state. 2 seconds is plenty for a few-dozen-tile
+    // view at typical network speeds.
+    if (async) {
+        std::cout << "Async mode: pausing 2s to let background fetches complete...\n";
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+    }
+
+    // One more untimed call to ensure everything is hot (memory cache, OS
+    // page cache for SQLite, OpenCV internals).
     render();
 
     std::cout << "Benchmarking for " << duration_s << "s "
@@ -144,7 +158,8 @@ int main(int argc, char* argv[]) {
               << ", zoom=" << zoom
               << ", heading=" << heading
               << ", dpi=" << dpi
-              << ", layers=" << layer_count << ")...\n";
+              << ", layers=" << layer_count
+              << (async ? ", async)" : ")") << "...\n";
 
     auto bench_start = Clock::now();
     auto bench_end = bench_start + std::chrono::duration_cast<Clock::duration>(Seconds(duration_s));
@@ -158,7 +173,6 @@ int main(int argc, char* argv[]) {
         if (ms < min_ms) min_ms = ms;
         if (ms > max_ms) max_ms = ms;
         ++frames;
-        // Force the result to be used so the optimizer doesn't elide work.
         if (m.empty()) { std::cerr << "Render returned empty\n"; return 1; }
     }
 
@@ -167,10 +181,10 @@ int main(int argc, char* argv[]) {
     double avg_ms = (elapsed * 1000.0) / frames;
 
     std::cout << "\n";
-    std::cout << "Frames:   " << frames << "\n";
-    std::cout << "Elapsed:  " << elapsed << " s\n";
-    std::cout << "FPS:      " << fps << "\n";
+    std::cout << "Frames:    " << frames << "\n";
+    std::cout << "Elapsed:   " << elapsed << " s\n";
+    std::cout << "FPS:       " << fps << "\n";
     std::cout << "avg/frame: " << avg_ms << " ms\n";
-    std::cout << "min/max:  " << min_ms << " / " << max_ms << " ms\n";
+    std::cout << "min/max:   " << min_ms << " / " << max_ms << " ms\n";
     return 0;
 }

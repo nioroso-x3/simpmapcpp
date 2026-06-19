@@ -1,7 +1,8 @@
 #include "MapTileRenderer.h"
+#include "AsyncTileLoader.h"
 #include "MapLayer.h"
 #include "LayerRenderer.h"
-#include <sqlite3.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -67,10 +68,33 @@ MapTileRenderer::MapTileRenderer(const std::string& tileset_url,
 
 MapTileRenderer::~MapTileRenderer() { cleanupCache(); }
 
+void MapTileRenderer::enableAsyncLoading(int num_threads) {
+    if (async_loader_) return;          // idempotent
+    if (!fetcher_) return;              // no transport, nothing to do
+
+    // Build the placeholder once: solid mid-grey, opaque, RGBA so it
+    // composites cleanly with the rest of the pipeline.
+    placeholder_tile_ = cv::Mat(TILE_SIZE, TILE_SIZE, CV_8UC4,
+                                cv::Scalar(170, 170, 170, 255));
+
+    // Callback writes the completed tile into the renderer's normal cache.
+    // The next drawMap call will pick it up as a cache hit. Capturing
+    // `this` is safe because the loader is a member and is destroyed
+    // before `this` becomes invalid.
+    auto on_complete = [this](const AsyncTileLoader::TileKey& k,
+                              const cv::Mat& tile) {
+        TileCoord c{k.x, k.y, k.z};
+        putTileInCache(c, tile);
+    };
+
+    async_loader_ = std::make_unique<AsyncTileLoader>(
+        std::move(fetcher_), std::move(on_complete), num_threads);
+}
+
 cv::Mat MapTileRenderer::drawMap(double latitude, double longitude, double zoom,
                                  int width, int height, double heading, int dpi,
                                  const LayerStore* layers) {
-    //LOGD("drawMap zoom=%.3f", zoom);
+    LOGD("drawMap zoom=%.3f", zoom);
 
     int tile_zoom = (zoom == std::floor(zoom))
                         ? static_cast<int>(zoom)
@@ -86,7 +110,7 @@ cv::Mat MapTileRenderer::drawMap(double latitude, double longitude, double zoom,
     BoundingBox bounds = calculateBounds(latitude, longitude, zoom,
                                          canvas, canvas, 96);
     auto tiles = getTilesInBounds(bounds, tile_zoom);
-    //LOGD("Fetching %zu tiles", tiles.size());
+    LOGD("Fetching %zu tiles", tiles.size());
 
     cv::Mat oversized = stitchAndCenter(tiles, tile_zoom, scale_factor,
                                         latitude, longitude, canvas, canvas);
@@ -107,10 +131,10 @@ cv::Mat MapTileRenderer::drawMap(double latitude, double longitude, double zoom,
             156543.034 * std::cos(latitude * M_PI / 180.0) / std::pow(2.0, zoom);
         geom.canvas_w = oversized.cols;
         geom.canvas_h = oversized.rows;
-        /*LOGD("Layer geom: mpp=%.3f canvas=%dx%d center_px=(%.1f,%.1f) layers=%zu",
+        LOGD("Layer geom: mpp=%.3f canvas=%dx%d center_px=(%.1f,%.1f) layers=%zu",
              geom.meters_per_pixel, geom.canvas_w, geom.canvas_h,
              geom.center_px, geom.center_py, layer_snapshot.size());
-        */
+
         // Geographic layers go onto the pre-rotation canvas so they rotate
         // with the map.
         LayerRenderer::drawGeographicLayers(oversized, layer_snapshot, geom);
@@ -174,8 +198,8 @@ cv::Mat MapTileRenderer::drawMapByArea(double latitude, double longitude,
         LOGW("drawMapByArea: zoom=%.2f - Web Mercator distortion may be "
              "significant at this scale", zoom);
     }
-    /*LOGD("drawMapByArea: %.1fm over %dpx -> %.4f m/px -> zoom=%.3f",
-         meters, min_dim, meters_per_pixel, zoom);*/
+    LOGD("drawMapByArea: %.1fm over %dpx -> %.4f m/px -> zoom=%.3f",
+         meters, min_dim, meters_per_pixel, zoom);
     return drawMap(latitude, longitude, zoom, width, height, heading, dpi, layers);
 }
 
@@ -224,6 +248,15 @@ MapTileRenderer::getTilesInBounds(const BoundingBox& bounds, int zoom) const {
 cv::Mat MapTileRenderer::downloadTile(const TileCoord& coord) const {
     cv::Mat cached = getTileFromCache(coord);
     if (!cached.empty()) return cached;
+
+    // Async path: queue a background fetch, return placeholder immediately.
+    if (async_loader_) {
+        async_loader_->request(buildTileUrl(coord),
+                               AsyncTileLoader::TileKey{coord.x, coord.y, coord.z});
+        return placeholder_tile_;
+    }
+
+    // Sync path (legacy / batch use).
     if (!fetcher_) return cv::Mat();
 
     std::string url = buildTileUrl(coord);
