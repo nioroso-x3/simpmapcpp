@@ -6,9 +6,14 @@
 #include <memory>
 #include <mutex>
 #include <opencv2/opencv.hpp>
-#include <sqlite3.h>
 #include <string>
 #include <unordered_map>
+
+// sqlite3 is an opaque C struct; we only hold a pointer to it, so a forward
+// declaration is enough here. The full <sqlite3.h> is included in the .cpp.
+// This keeps consumers of simplemap from needing sqlite3.h on their include
+// path just because they include this header.
+struct sqlite3;
 
 class LayerStore;  // forward decl, defined in MapLayer.h
 class AsyncTileLoader;  // forward decl, defined in AsyncTileLoader.h

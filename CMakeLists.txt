@@ -38,7 +38,10 @@ if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite3/sqlite3.c)
 endif()
 
 add_library(simplemap_sqlite3 STATIC third_party/sqlite3/sqlite3.c)
-target_include_directories(simplemap_sqlite3 PUBLIC third_party/sqlite3)
+# PRIVATE include dir: only sqlite3.c itself needs to find sqlite3.h via this
+# target. simplemap's own .cpp files get the path explicitly below. Consumers
+# of simplemap never need it because no public header exposes sqlite types.
+target_include_directories(simplemap_sqlite3 PRIVATE third_party/sqlite3)
 target_compile_definitions(simplemap_sqlite3 PRIVATE
     SQLITE_THREADSAFE=1
     SQLITE_OMIT_LOAD_EXTENSION
@@ -59,8 +62,9 @@ if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/httplib/httplib.h)
         "into third_party/httplib/. See third_party/httplib/README.md.")
 endif()
 
-# httplib is header-only - we'll include it directly in the main target
-# to avoid exposing it to consumers
+add_library(simplemap_httplib INTERFACE)
+target_include_directories(simplemap_httplib INTERFACE third_party/httplib)
+target_compile_definitions(simplemap_httplib INTERFACE CPPHTTPLIB_OPENSSL_SUPPORT)
 
 # ----------------------------------------------------------------------------
 # Dependencies: OpenSSL
@@ -94,14 +98,15 @@ target_link_libraries(simplemap
         ${OpenCV_LIBS}
     PRIVATE
         simplemap_sqlite3
+        simplemap_httplib
         simplemap::openssl_ssl
         simplemap::openssl_crypto
 )
-target_include_directories(simplemap SYSTEM PRIVATE
-    ${OpenCV_INCLUDE_DIRS}
-    third_party/httplib
-)
-target_compile_definitions(simplemap PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
+target_include_directories(simplemap SYSTEM PRIVATE ${OpenCV_INCLUDE_DIRS})
+# simplemap's own .cpp files include <sqlite3.h>; add the path privately so it
+# is available to the library build but never propagates to consumers.
+target_include_directories(simplemap PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite3)
 
 if(ANDROID)
     # __android_log_print and zlib (httplib uses it for compressed responses)
@@ -112,8 +117,6 @@ elseif(UNIX)
 endif()
 
 set_target_properties(simplemap PROPERTIES
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN ON
     EXPORT_NAME simplemap
 )
 

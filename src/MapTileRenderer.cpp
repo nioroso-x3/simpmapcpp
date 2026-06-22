@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <vector>
+#include <sqlite3.h>
 
 #if defined(__ANDROID__)
   #include <android/log.h>
